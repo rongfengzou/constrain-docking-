@@ -6,9 +6,43 @@ from math import isnan, isinf
 from rdkit.Chem import ChemicalForceFields
 from rdkit.Chem import rdMolAlign
 
+def substructure_from_atom_indices(mol, atom_indices):
+    """
+    Create a substructure from the given atom indices in a molecule.
+
+    Args:
+    mol (rdkit.Chem.Mol): The input molecule.
+    atom_indices (list of int): The atom indices to include in the substructure.
+
+    Returns:
+    rdkit.Chem.Mol: The substructure molecule.
+    """
+    atom_indices = set(atom_indices)
+    bond_indices = [bond.GetIdx() for bond in mol.GetBonds() if bond.GetBeginAtomIdx() in atom_indices and bond.GetEndAtomIdx() in atom_indices]
+    submol = Chem.PathToSubmol(mol, bond_indices)
+    return submol
 
 def get_atom_mapping(mol, core):
-    mcs = rdFMCS.FindMCS([mol, core], ringMatchesRingOnly=True, completeRingsOnly=True, matchChiralTag=True, timeout=100)
+    '''remove hydrogen in core, find fake MCS, 
+       add neighbour hydrogens, 
+       create substructure, get real MCS, get atom mapping'''
+    # remove hydrogens in core
+    core_noH = Chem.RemoveHs(core)
+    # find fake MCS
+    mcs_noH = rdFMCS.FindMCS([mol, core_noH], ringMatchesRingOnly=True, completeRingsOnly=True, matchChiralTag=True, timeout=100)
+    mcs_noH_mol = Chem.MolFromSmarts(mcs_noH.smartsString)
+    # add neighbour hydrogens
+    core_match = list(core.GetSubstructMatch(mcs_noH_mol))
+    for i in core_match:
+        for j in core.GetAtomWithIdx(i).GetNeighbors():
+            if j.GetIdx() not in core_match:
+                if j.GetAtomicNum() == 1:
+                    core_match.append(j.GetIdx())
+    # create substructure
+    submol = substructure_from_atom_indices(core, core_match)
+    # get read MCS
+    mcs = rdFMCS.FindMCS([mol, submol], ringMatchesRingOnly=False, completeRingsOnly=False, matchChiralTag=False, timeout=100)
+    # get atom mapping
     mcs_mol = Chem.MolFromSmarts(mcs.smartsString)
     mol_match = mol.GetSubstructMatch(mcs_mol)
     core_match = core.GetSubstructMatch(mcs_mol)
