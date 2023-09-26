@@ -40,7 +40,7 @@ def get_atom_mapping(mol, core):
                     core_match.append(j.GetIdx())
     # create substructure
     submol = substructure_from_atom_indices(core, core_match)
-    # get read MCS
+    # get real MCS
     mcs = rdFMCS.FindMCS([mol, submol], ringMatchesRingOnly=False, completeRingsOnly=False, matchChiralTag=False, timeout=100)
     # get atom mapping
     mcs_mol = Chem.MolFromSmarts(mcs.smartsString)
